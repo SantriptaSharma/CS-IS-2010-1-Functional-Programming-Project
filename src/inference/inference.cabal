@@ -37,6 +37,7 @@ library
   build-depends:
       base >=4.7 && <5
     , matrix
+    , parsec
     , vector
   default-language: Haskell2010
 
@@ -53,6 +54,7 @@ executable inference-exe
       base >=4.7 && <5
     , inference
     , matrix
+    , parsec
     , vector
   default-language: Haskell2010
 
@@ -70,5 +72,6 @@ test-suite inference-test
       base >=4.7 && <5
     , inference
     , matrix
+    , parsec
     , vector
   default-language: Haskell2010

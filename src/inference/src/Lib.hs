@@ -1,6 +1,5 @@
 module Lib 
-    (Layer(..), inDim, outDim, weights, biases, next,
-     defaultLayer)
+    (Layer(..), defaultLayer, Network)
 where
 
 import Data.Matrix (Matrix)
@@ -10,27 +9,23 @@ import qualified Data.Matrix as Mat (zero)
 import qualified Data.Vector as Vec (replicate)
 
 -- TODO: test dimensions on loading
-data Layer = NilLayer | 
-    Layer {
-        inDim :: Integer,
-        outDim :: Integer,
-        weights :: Matrix Float,
-        biases :: Vector Float,
-        next :: Layer
+type Network = [Layer]
+
+data Layer = Layer {
+        inDim :: Int,
+        outDim :: Int,
+        weights :: Matrix Double,
+        biases :: Vector Double
     }
 
+-- used for testing
 defaultLayer :: Layer
 defaultLayer = Layer{
     inDim = 10,
     outDim = 30,
     weights = Mat.zero 10 30,
-    biases = Vec.replicate 10 0,
-    next = NilLayer
+    biases = Vec.replicate 10 0
 }
 
 instance Show Layer where
-    show NilLayer = "Nil"
-    show l = show inD ++ " -> " ++ show outD
-        where
-            inD = inDim l
-            outD = outDim l
+    show (Layer inD outD w b) = show inD ++ " -> " ++ show outD ++ "\n" ++ show w ++ "\n" ++ show b

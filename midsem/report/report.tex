@@ -21,7 +21,6 @@
 \newcommand{\kso}{\ket{\psi_1}}
 \newcommand{\kst}{\ket{\psi_2}}
 
-
 \newcommand{\rec}[1]{\frac{1}{#1}}
 
 \newenvironment*{qparts}{\begin{enumerate}[label=(\alph*)]}{\end{enumerate}}
@@ -38,7 +37,7 @@
 \maketitle
 \hrule \bigskip
 
-\section{Problem}
+\section{Problem Statement \& Requirements}
 This project is concerned with building a tool for running inference over a given feed-forward neural network. In particular, we are interested in inferencing a network trained on the Iris Dataset, where the goal is to classify Iris flowers into one of three species --- setosa, verticolor, or virginica --- based on the following four features:
 \begin{enumerate}
 	\item Sepal length
@@ -65,8 +64,8 @@ For every vector in the input batch,
 	\item Activation values associated with each class at the output layer (vector)
 \end{itemize}
 
-\subsection{Project Architecture}
-The project can broadly be divided into two modules, the training module \& the inference module. These operate independently from each other, with the only interface between them being the inference module taking the training module's output (model structure, weights, biases) as its input.
+\subsection{Design \& Architecture}
+The project can broadly be divided into two modules, the training module \& the inference module. These operate independently from each other, with the only interface between them being the inference module taking the training module's output (model structure, weights, biases) as its input, which is then used to reconstruct the model.
 
 \newpage
 \begin{figure}
