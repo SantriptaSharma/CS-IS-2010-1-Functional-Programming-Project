@@ -78,7 +78,7 @@ Then, due to their decoupling, we can individually dissect each of the modules.
 \subsubsection{Training Module}
 The purpose of the training module is to provide us with a set of models we can use to test our inference module. As such, we don't strictly require a high performance model. However, we still perform some basic hyperparameter selection after loading the dataset in using a 5-fold cross validation approach to determine the shape of the network (number \& size of hidden layers).\bigskip
 
-The model architecture used is a simple feedforward network. Using a grid search, we find the top 5 performing models, and also one poorly performing model, out of a generated set of possible shapes for the network.\bigskip
+The model architecture used is a simple feedforward network, a sequence of linear layers using the ReLU activation function between the hidden layers, and the softmax activation at the end (since we're doing multiclass classification). Using a grid search, we find the top 5 performing models, and also one poorly performing model, out of a generated set of possible shapes for the network.\bigskip
 
 Finally, we write the networks' shapes, weights, and biases into a text file, which can then be used by the inference module to restore the model. In later versions of the project, the intention is to transition this into a binary file format, for higher time \& space efficiency at the restoration stage.
 

@@ -1,12 +1,15 @@
 module Parser (parseNetwork) where
 
-import Data.Matrix (Matrix)
+import Data.Matrix (Matrix, colVector)
 import Data.Vector (Vector)
+
+import Debug.Trace
+import Control.Monad(void)
 
 import qualified Data.Matrix as Mat (fromList)
 import qualified Data.Vector as Vec (fromList)
 
-import Lib(Network, Layer(..))
+import Lib(Network, Layer(Layer))
 import Text.ParserCombinators.Parsec
 
 parseNetwork :: String -> Network
@@ -16,8 +19,7 @@ parseNetwork contents = case runParser weightsFile () "" contents of
 
 weightsFile :: Parser Network 
 weightsFile = do
-    manyTill anyChar eol
-    layers <- sepEndBy layer (many1 eol)
+    layers <- sepEndBy layer (many1 whitespace)
     eof
     return layers
 
@@ -27,7 +29,7 @@ layer = do
     (weights, nRows, nCols) <- matrix
     many whitespace
     biases <- Vec.fromList <$> vector
-    return $ Layer nRows nCols weights biases
+    return $ Layer nCols nRows weights (colVector biases)
 
 matrix :: Parser (Matrix Double, Int, Int)
 matrix = do
