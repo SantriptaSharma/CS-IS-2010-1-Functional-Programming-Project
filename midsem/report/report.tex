@@ -1,6 +1,30 @@
 \documentclass[12pt]{article}
 \usepackage[a4paper, total={6.5in, 10in}]{geometry}
 
+\usepackage{listings}
+\usepackage{color}
+
+\definecolor{dkgreen}{rgb}{0,0.6,0}
+\definecolor{gray}{rgb}{0.5,0.5,0.5}
+\definecolor{mauve}{rgb}{0.58,0,0.82}
+
+\lstset{frame=tb,
+  language=Haskell,
+  aboveskip=3mm,
+  belowskip=3mm,
+  showstringspaces=false,
+  columns=flexible,
+  basicstyle={\small\ttfamily},
+  numbers=none,
+  numberstyle=\tiny\color{gray},
+  keywordstyle=\color{blue},
+  commentstyle=\color{dkgreen},
+  stringstyle=\color{mauve},
+  breaklines=true,
+  breakatwhitespace=true,
+  tabsize=3
+}
+
 \usepackage{amsmath}
 \usepackage{amssymb}
 \usepackage{enumitem}
@@ -57,7 +81,7 @@ Based on this problem statement, the project's requirements can be formulated as
 \section{Specification}
 Generalising from the requirements, we offer the following featureset:
 \begin{enumerate}
-	\item Parsing capabilities to restore the shape, weights, and biases of \textbf{an arbitrary} numerical FFN-based classifier from a file.
+	\item Parsing capabilities to restore the shape, weights, and biases of \textbf{an arbitrary} FFN-based classifier from a file.
 	\item Interactive \& batched modes of performing inference. \begin{itemize}
 		\item \textbf{Interactive}: The user enters a single new datapoint and gets predictions for it in real-time. Structured as a Read-Eval-Print-Loop (REPL).
 		\item \textbf{Batched}: The user provides many datapoints in a csv file, and receives predictions for each point. Additionally, the system reports aggregate statistics.
@@ -129,7 +153,7 @@ Through this parsing process, the model shape, and its parameters are loaded int
 
 Next, based on which mode it was started in, the system either enters a REPL or parses the input batch csv file it was provided (again, with the help of the parsing support module). In either mode, once the feature vector(s) are acquired, the tensor support module is used to perform the sequence of computations that lead to the final prediction.\bigskip
 
-The final output (for each feature vector) is the predicted class and the probabilities associated with each class.
+The final output (for each feature vector) is the predicted class and the probabilities associated with each class. In the case of batch mode, we also report summary statistics, how many vectors belonged to each class.
 
 \section{Tooling}
 \subsection{Training Module}
@@ -170,17 +194,183 @@ Consider two examples:
 We use an end-to-end test to verify the correctness of our inference module. Here, we treat our sklearn model as an oracle, randomly generating many batches of feature vectors (in addition to the existing test split), running them through both our oracle \& the inference module, and comparing the output activations.
 
 \section{Prototype Details}
+\subsection{Project Structure}
+\begin{verbatim}
+src
+|
+-- inference <--- inference module
+|  |
+|  -- app/Main.hs    <--- driver code
+|  -- src/Lib.hs     <--- tensor support module
+|  -- src/Parser.hs  <--- parsing support module
+|  ...
+-- models    <--- pickled sklearn models (for testing)
+-- weights   <--- model files
+-- infer.py  <--- sklearn inference helper
+-- iris*.csv <--- datasets
+-- train_model.ipynb <--- training module
+\end{verbatim}
 
+\subsection{Feature Set}
+The prototype implements the following features:
+\begin{itemize}
+	\item Complete restoration of any feed-forward classifier, given its parameters in the model file format, assuming it uses ReLU + Softmax activations.
+	\item Interactive mode REPL, where the user can enter new datapoints, and get prediction outputs (activations + class label) for them.
+	\item Batch mode, where the user can provide a csv file of datapoints to run inference on, and get prediction outputs for each point.
+\end{itemize}
+
+\subsection{Limitations}
+\begin{itemize}
+	\item Lack of runtime checks for user input, leading to a restrictive input format \& several non-graceful exits, without any useful feedback to the user.
+	\item Class of models that works limited to ReLU + Softmax activation based classifiers (large but not comprehensive).
+	\item The csv input in batch mode can't end on a blank line (parser bug)
+	\item Batch mode doesn't provide summary statistics
+\end{itemize}
+
+\subsection{Exploration of Selected Functionality}
+\subsubsection{Parsing a model file}
+The power of a parser combinator comes from its characteristic composability of various atomic parsers, which can each be individually tested, building up to the final parser. To illustrate this, here's the parser for a number within a model file.
+\begin{lstlisting}
+number :: Parser Double
+number = do
+	sign <- option "" $ string "-"
+	int <- many1 digit <?> "integer part"
+	dec <- option "" $ do
+		void $ char '.'
+		frac <- many1 digit
+		return $ '.' : frac
+	pow <- option "" $ do
+		void $ char 'e'
+		esign <- option "" $ string "-" <|> string "+"
+		num <- many1 digit
+		let epart = 'e':(esign ++ num)
+		return epart
+	let num = read (sign ++ int ++ dec ++ pow) :: Double
+	return num	
+\end{lstlisting}
+This parser parses out a double-precision floating point number, given a string which may or may not be in scientific notation (eg. 2.35 vs 3.31045e-5). Once we are convinced about the correctness of this parser, perhaps by throwing test cases at it, we can use this parser to implement a parser for bias vectors:
+\begin{lstlisting}
+vector :: Parser [Double]
+vector = do
+	void $ char '['
+	eatWhitespace
+	numbers <- sepEndBy number (many1 whitespace)
+	void (char ']' <?> "vector closing bracket")
+	return numbers
+\end{lstlisting}
+Here, we have a parser which returns a list of doubles, essentially a vector. As we convince ourselves of its correctness through testing, it occurs to us that this parser can apply not only to bias vectors, but also to the vectors within each matrix. After all, matrices are represented as lists of vectors. Then, we arrive at a parser for matrices:
+\begin{lstlisting}
+matrix :: Parser (Matrix Double, Int, Int)
+matrix = do
+	void $ char '['
+	eatWhitespace
+	rows <- sepEndBy vector (many1 whitespace)
+	void (char ']' <?> "matrix closing bracket")
+	let nRows = length rows
+	let nCols = length $ head rows
+	return (Mat.fromList nRows nCols (concat rows), nRows, nCols)
+\end{lstlisting}
+And so on we go, composing our parsers all the way up the chain until we have a fully functional model file parser. It is hard to overstate the convenience and confidence this approach of writing a parser provides, where we can incrementally test each stage of our parser, using it as a foundation for the next layer.
+
+\subsubsection{Batch inference}
+As a prerequisite for this section, here's what the network data structure looks like:
+\begin{lstlisting}
+type Network = [Layer]
+
+data Layer = Layer {
+		inDim :: Int,
+		outDim :: Int,
+		weights :: Matrix Double,
+		biases :: Matrix Double
+	}
+\end{lstlisting}
+Quite simply, a feed-forward neural network can be modeled as a list of layers. Now, to perform inference of a single vector on this network, we have:
+\begin{lstlisting}
+inferSingle :: Network -> Vector Double -> Vector Double
+inferSingle net input = getCol 1 $ softLayer 
+			(foldl reluLayer inpMat nonLinear) final
+	where
+		inpMat = colVector input
+		size = length net
+		nonLinear = take (size - 1) net
+		final = last net
+
+		inferLayer :: Matrix Double -> Layer -> Matrix Double
+		inferLayer inp (Layer _ _ w b) = w * inp + b
+
+		reluLayer :: Matrix Double -> Layer -> Matrix Double
+		reluLayer inp lay = relu (inferLayer inp lay)
+
+		softLayer :: Matrix Double -> Layer -> Matrix Double
+		softLayer inp lay = softmax (inferLayer inp lay)
+\end{lstlisting}
+Assuming that \verb|relu| \& \verb|softmax| are easy to define (they are), this is a fairly simple construction. So, then, since the inferLayer function is already using matrices under the hood, and matrix multiplication distributes under column concatenation, surely batch inference is a simple extension, like so:
+\begin{lstlisting}
+inferBatch :: Network -> Matrix Double -> Matrix Double
+inferBatch net input = softLayer (foldl reluLayer input nonLinear) final
+	where
+		size = length net
+		nonLinear = take (size - 1) net
+		final = last net
+
+		inferLayer :: Matrix Double -> Layer -> Matrix Double
+		inferLayer inp (Layer _ _ w b) = w * inp + b
+		...
+\end{lstlisting}
+Seems simple enough, and it compiles as well, so this must work, surely?
+
+Of course not, batchInference fails with a distinctly obtuse runtime error that fails to even provide a proper call stack. After a little bit of exploration, it becomes clear that the bias dimensions no longer match, since $Wx$ now has multiple columns, but $b$ retains only one column, making $Wx + b$ incoherent. Easy enough fix:
+\begin{lstlisting}
+inferBatch :: Network -> Matrix Double -> Matrix Double
+inferBatch net input = softLayer (foldl reluLayer input nonLinear) final
+	where
+		size = length net
+		nonLinear = take (size - 1) net
+		final = last net
+
+		inputCols = ncols input
+
+        expandCols :: Matrix Double -> Matrix Double
+        expandCols mat = foldr (\_ acc -> acc <|> mat) mat [1..inputCols]
+
+		inferLayer :: Matrix Double -> Layer -> Matrix Double
+		inferLayer inp (Layer _ _ w b) = w * inp + (expandCols b)
+		...
+\end{lstlisting}
+And this does solve the error, opening the gates to another, more subtle error. The batch inference is producing results, but the output activations don't look much like probabilities, as they should after a softmax.\bigskip
+
+Upon investigating the softmax implementation, the cause becomes clear:
+\begin{lstlisting}
+softmax :: Matrix Double -> Matrix Double
+softmax v = (/ denom) . exp <$> v
+			where denom = sum (exp <$> v)	
+\end{lstlisting}
+This works perfectly fine, when there is exactly one column in the matrix (the argument name itself, captures much of the reason for this incorrectness). When this is not the case, however, the denominator is accumulated over all elements of the matrix, instead of per output vector. Therefore, we need to generalise this single column softmax function to a multi column soft max function. Unfortunately, due to the minimal interface of the matrix package, the cleanest solution I have currently been able to come up for this is:
+\begin{lstlisting}
+batchSoftmax :: Matrix Double -> Matrix Double
+batchSoftmax mat = submatrix 1 rows 1 inputCols (foldr folder (fromList rows 1 [1..]) [1..inputCols])
+	where
+		rows = nrows mat
+		folder :: Int -> Matrix Double -> Matrix Double
+		folder colIdx acc = colVector ((/ denom col) . exp <$> col) <|> acc
+			where col = getCol colIdx mat
+
+		denom :: Vector Double -> Double
+		denom col = sum (exp <$> col)
+\end{lstlisting}
 
 \section{Plan for Completion}
 A high-level roadmap for the project's completion is as follows:
 \begin{itemize}
 	\item Perform runtime checks on input dimension during inference.
-	\item Runtime checks for interactive mdoe (for graceful fails).
-	\item Implement tests.
+	\item Runtime checks for interactive mode (for graceful fails).
+	\item Implement the test suite discussed above.
 	\item Allow alternative activation functions for non-output layers, as opposed to assuming ReLU.
 	\item Add testing mode, given batch and expected outputs, report model accuracy.
 	\item Add aggregation mode, use multiple trained models with voting (ensemble method).
 \end{itemize}
+Upon delivery of all these tasks, the project will be in its completed state.\bigskip
+
+The choice to develop tests \& more robust runtime checks for the existing features before moving onto the new features is so that I can gain a better understanding of how to structure exception handling in haskell, and also learn how to use HSpec for unit tests. Then, as the new features are being implemented, a test-driven approach can be followed, allowing the new features to be verified as they're implemented.
 
 \end{document}

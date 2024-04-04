@@ -52,7 +52,7 @@ inferBatch net input = softLayer (foldl reluLayer input nonLinear) final
         softLayer inp lay = batchSoftmax (inferLayer inp lay)
 
         batchSoftmax :: Matrix Double -> Matrix Double
-        batchSoftmax mat = submatrix 1 rows 1 inputCols (foldr folder (fromList rows 1 [1,1..]) [1..inputCols])
+        batchSoftmax mat = submatrix 1 rows 1 inputCols (foldr folder (fromList rows 1 [1..]) [1..inputCols])
             where
                 rows = nrows mat
                 folder :: Int -> Matrix Double -> Matrix Double
