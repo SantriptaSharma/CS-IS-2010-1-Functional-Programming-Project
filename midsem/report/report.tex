@@ -102,7 +102,7 @@ Then, the system can broadly be divided into two modules, the training module \&
 First, we look at the common thread between the two modules, the file format for sharing the trained model parameters.
 
 \subsection{Trained Model Format}
-For the prototyping stage, we opt to use a plaintext format for the trained model parameters, since this allows easier debugging and editing.\bigskip
+For the prototyping stage, we opt to use a plaintext format for the trained model parameters, since this allows easier debugging and editing. This will eventually be transitioned to a binary format.\bigskip
 
 We know that a feedforward neural network is comprised of several layers of neurons, with each layer (besides the input layer) having a matrix of weights \& a vector of biases associated with itself. Further, using the propagation formula $Wx + b$, we can infer the incoming and outgoing dimension of each stage from these matrices alone.\bigskip
 
@@ -147,7 +147,9 @@ inference-exe <path_to_model_file> [<path_to_batch_csv>]
 \end{verbatim}
 If the second, optional argument is omitted, it starts in interactive mode. Otherwise, it starts in batched mode.\bigskip
 
-In either case, its first task is to restore the model from the given model file. Here, we utilise the parsing support module, which will be discussed in the Tooling section.\bigskip
+In either case, its first task is to restore the model from the given model file. Here, we utilise the parsing support module, which is written using parser combinators. Since the current model file format is plaintext, it is well suited to parsing by simple regular expressions. However, we opt to use parser combinators to facilitate a quicker/smoother transition to the binary model file format planned for the final project, which now only requires a slight rewrite of the parser. Additionally, for more complex formats (like our model file), the parser combinator approach admits more scope for unit testing. 
+
+Further implementation details of the parser are discussed in the Test Plan \& Prototype Details section. \bigskip
 
 Through this parsing process, the model shape, and its parameters are loaded into a data structure which takes the form of a list of layers, where each layer stores its input \& output shapes, and the weights \& biases matrices.\bigskip
 
@@ -169,6 +171,8 @@ The inference module is written in Haskell. We use the Haskell Tool Stack (or ju
 
 	\item \textbf{parsec}\\
 	Parsec is Haskell's standard parser combinator library, allowing us to write atomic parsers and compose them together. Parsec forms the foundations of the parsing support module, which is used for parsing both the model files \& csv files for batched input mode.\bigskip
+
+	Parsec has a variant called attoparsec, which is designed for binary file parsing. Later iterations of the project will swap parsec for attoparsec (for the task of model file parsing), as the model file format switches from a plaintext to a binary file format.
 
 	Discussion of the specifics of the parser implementations is deferred to the Prototype Details section.
 \end{itemize}
@@ -317,9 +321,9 @@ inferBatch net input = softLayer (foldl reluLayer input nonLinear) final
 		inferLayer inp (Layer _ _ w b) = w * inp + b
 		...
 \end{lstlisting}
-Seems simple enough, and it compiles as well, so this must work, surely?
+While this successfully compiles, this leads to quite an obtuse runtime error during batch inference.\medskip
 
-Of course not, batchInference fails with a distinctly obtuse runtime error that fails to even provide a proper call stack. After a little bit of exploration, it becomes clear that the bias dimensions no longer match, since $Wx$ now has multiple columns, but $b$ retains only one column, making $Wx + b$ incoherent. Easy enough fix:
+After some exploration, it becomes clear that this is due to a mismatch in dimension of $Wx$ and $b$, since $b$ is a single column vector. Then, we just write a function to expand $b$ to the same column length as the input vector, by appending it to itself (column-wise):
 \begin{lstlisting}
 inferBatch :: Network -> Matrix Double -> Matrix Double
 inferBatch net input = softLayer (foldl reluLayer input nonLinear) final
@@ -337,7 +341,7 @@ inferBatch net input = softLayer (foldl reluLayer input nonLinear) final
 		inferLayer inp (Layer _ _ w b) = w * inp + (expandCols b)
 		...
 \end{lstlisting}
-And this does solve the error, opening the gates to another, more subtle error. The batch inference is producing results, but the output activations don't look much like probabilities, as they should after a softmax.\bigskip
+And this does solve the error, opening the gates for another, more subtle error. The batch inference is producing results, but the output activations don't look much like probabilities, as they should after a softmax.\bigskip
 
 Upon investigating the softmax implementation, the cause becomes clear:
 \begin{lstlisting}
@@ -345,7 +349,9 @@ softmax :: Matrix Double -> Matrix Double
 softmax v = (/ denom) . exp <$> v
 			where denom = sum (exp <$> v)	
 \end{lstlisting}
-This works perfectly fine, when there is exactly one column in the matrix (the argument name itself, captures much of the reason for this incorrectness). When this is not the case, however, the denominator is accumulated over all elements of the matrix, instead of per output vector. Therefore, we need to generalise this single column softmax function to a multi column soft max function. Unfortunately, due to the minimal interface of the matrix package, the cleanest solution I have currently been able to come up for this is:
+This works perfectly fine when there is exactly one column in the matrix. When this is not the case, however, the denominator is accumulated over all elements of the matrix, instead of per output vector. Therefore, we need to generalise this single column softmax function to a multi column soft max function.\bigskip
+
+The cleanest solution I have been able to come up for this at this time is:
 \begin{lstlisting}
 batchSoftmax :: Matrix Double -> Matrix Double
 batchSoftmax mat = submatrix 1 rows 1 inputCols (foldr folder (fromList rows 1 [1..]) [1..inputCols])
@@ -359,17 +365,30 @@ batchSoftmax mat = submatrix 1 rows 1 inputCols (foldr folder (fromList rows 1 [
 		denom col = sum (exp <$> col)
 \end{lstlisting}
 
+\subsection{Examples}
+{
+	\centering
+	\includegraphics[width=\textwidth]{../images/examples.png}
+	Interactive Mode
+
+	\vspace{1cm}
+	\includegraphics[width=\textwidth]{../images/examplebatch.png}
+	Batched Mode
+
+}
+
 \section{Plan for Completion}
 A high-level roadmap for the project's completion is as follows:
 \begin{itemize}
 	\item Perform runtime checks on input dimension during inference.
 	\item Runtime checks for interactive mode (for graceful fails).
 	\item Implement the test suite discussed above.
+	\item Transition to a binary data format for the model files.
 	\item Allow alternative activation functions for non-output layers, as opposed to assuming ReLU.
 	\item Add testing mode, given batch and expected outputs, report model accuracy.
 	\item Add aggregation mode, use multiple trained models with voting (ensemble method).
 \end{itemize}
-Upon delivery of all these tasks, the project will be in its completed state.\bigskip
+Upon the completion of all these tasks, the project will be in its completed state.\bigskip
 
 The choice to develop tests \& more robust runtime checks for the existing features before moving onto the new features is so that I can gain a better understanding of how to structure exception handling in haskell, and also learn how to use HSpec for unit tests. Then, as the new features are being implemented, a test-driven approach can be followed, allowing the new features to be verified as they're implemented.
 
