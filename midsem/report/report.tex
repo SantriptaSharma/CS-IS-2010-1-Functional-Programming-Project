@@ -138,7 +138,7 @@ The model architecture used is the one mentioned above, a simple feedforward net
 
 Before fitting 6 models using these shapes on the data, the data is transformed by converting the output classes column from textual labels to numerical labels, to avoid any ordering ambiguities arising during the training process. This transformed data is then split into. into training \& test sets, and fit the models on the training set.\bigskip
 
-Finally, we write the networks' shapes, weights, and biases into model files, which can then be used by the inference module.
+Finally, we write the networks' weights and biases into model files, which can then be used by the inference module.
 
 \subsection{Inference Module}
 The inference module constitutes the bulk of the codebase. It produces an executable with the following signature:
@@ -177,7 +177,7 @@ The inference module is written in Haskell. We use the Haskell Tool Stack (or ju
 A mix of bash \& python scripts is used to implement the end-to-end tests and certain convenient utilities (eg. infer.py for loading and making predictions using sklearn, used to verify infer module). 
 
 \section{Test Plan}
-Due to the large number of disjoint moving parts in the project, the plan is to implement a test suite consisting of unit \& end-to-end tests.
+Due to the large number of disjoint moving parts in the project, the plan is to implement a test suite consisting of unit \& end-to-end tests. Additionally, we will be profiling our system to ensure it meets the real-time requirements.
 
 \subsection{Unit Testing}
 First, we note that the training module does not require testing, due to its simplicity and it almost exclusively using sklearn library functions. For the inference module, all the parser functions, and many of the inference functions are complex enough to warrant unit testing. We plan to implement these using HSpec, which is the testing framework Stack provides.\bigskip

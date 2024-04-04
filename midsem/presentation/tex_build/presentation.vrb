@@ -1,0 +1,13 @@
+\frametitle{Batch Inference - Softmax Generalisation}
+
+  \begin{lstlisting}
+    batchSoftmax :: Matrix Double -> Matrix Double
+    batchSoftmax mat = submatrix 1 rows 1 inputCols (foldr folder (fromList rows 1 [1..]) [1..inputCols])
+      where
+        rows = nrows mat
+        folder :: Int -> Matrix Double -> Matrix Double
+        folder colIdx acc = colVector ((/ denom col) . exp <$> col) <|> acc
+          where col = getCol colIdx mat
+
+        denom :: Vector Double -> Double
+        denom col = sum (exp <$> col)  \end{lstlisting}
