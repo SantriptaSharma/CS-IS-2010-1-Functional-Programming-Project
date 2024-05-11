@@ -37,7 +37,6 @@ main = do
     argv <- getArgs
     let argc = length argv
     when (argc < 1) $ error "Usage: inference <weights file> [<batch csv file>]"
-    -- TODO: add batch inference with csv file (argc > 1)
     contents <- readFile $ head argv
     let !network = parseNetwork contents
     if argc == 1 then repl network
