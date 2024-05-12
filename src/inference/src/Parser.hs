@@ -1,10 +1,9 @@
 module Parser (parseNetwork, parseCsv) where
 
-import Data.Matrix (Matrix, colVector)
 import Control.Monad(void)
 
-import qualified Data.Matrix as Mat (fromList, fromLists, transpose)
-import qualified Data.Vector as Vec (fromList)
+import Numeric.LinearAlgebra.Data (Matrix, R, fromLists, fromList, fromColumns, tr)
+import qualified Numeric.LinearAlgebra.Data as Mat (matrix)
 
 import Lib(Network, Layer(Layer))
 import Text.ParserCombinators.Parsec
@@ -14,16 +13,16 @@ parseNetwork contents = case runParser weightsFile () "" contents of
     Left msg -> error $ "Error parsing weights file: " ++ show msg
     Right network -> network
 
-parseCsv :: String -> Matrix Double
+parseCsv :: String -> Matrix R
 parseCsv contents = case runParser csvFile () "" contents of
     Left msg -> error $ "Error parsing csv file: " ++ show msg
     Right mat -> mat
 
-csvFile :: Parser (Matrix Double)
+csvFile :: Parser (Matrix R)
 csvFile = do
     void $ manyTill anyChar eol
     lists <- sepBy line eol
-    return $ Mat.transpose (Mat.fromLists lists)
+    return $ tr (fromLists lists)
     where
         line = sepBy number (char ',')
         eol = try (string "\r\n") <|> string "\n"
@@ -39,10 +38,10 @@ layer = do
     eatWhitespace
     (weights, nRows, nCols) <- matrix
     eatWhitespace
-    biases <- Vec.fromList <$> vector
-    return $ Layer nCols nRows weights (colVector biases)
+    biases <- fromList <$> vector
+    return $ Layer nCols nRows weights (fromColumns [biases])
 
-matrix :: Parser (Matrix Double, Int, Int)
+matrix :: Parser (Matrix R, Int, Int)
 matrix = do
     void $ char '['
     eatWhitespace
@@ -50,7 +49,7 @@ matrix = do
     void (char ']' <?> "matrix closing bracket")
     let nRows = length rows
     let nCols = length $ head rows
-    return (Mat.fromList nRows nCols (concat rows), nRows, nCols)
+    return (Mat.matrix nCols (concat rows), nRows, nCols)
 
 vector :: Parser [Double]
 vector = do

@@ -82,7 +82,7 @@
 \section{Introduction}
 Through the course of this project, we have developed a command-line tool to run inference on (or evaluate) an arbitrary feed-forward neural network (for classification tasks). The primary goal for the project was to gain familiarity with haskell (and the functional programming paradigm) by implementing a medium-sized project using it.\bigskip
 
-In this regard, the project has been quite succesful, forcing me to cover a lot of the bases in a relatively short time. The entire process took me from the basics, performing command-line I/O, and using the haskell tool stack, all the way to writing parser combinators for binary data, using monads, and implementing test suites with HUnit.\bigskip
+In this regard, the project has been quite succesful, forcing me to cover a lot of the bases in a relatively short time. The entire process took me from the basics, performing command-line I/O, and using the haskell tool stack, all the way to writing parser combinators for binary data, using monads, and implementing test suites with HSpec.\bigskip
 
 Besides the learning outcomes from the project, the tool that has been developed is also useful in practical settings. It has been designed \& developed keeping in mind optimality, generalizability, and usability. An example use case of this tool is one where the user has been handed a trained classifier network (by, say, a tech-consultancy firm), and they wish to verify its performance on their data, without writing an evaluation/inference script on their own (due to time constraints or inexperience with the technology).
 
@@ -107,7 +107,7 @@ The Feed-Forward Network (FFN) is a versatile network architecture for deep neur
 	\end{flalign}
 	Where $in\_dim$ is the dimensionality (number of features) of a datapoint in our dataset.
 
-	\item \textbf{Hidden Layers} ($L_2, \dots, L_{n_{hidden} + 1}$): The layers between the first and last (exclusive) are the hidden layers. \textbf{The model's architecture is parametrised by the number of hidden layers ($n_{hidden}$), and the size of each hidden layer (the number of neurons in it)}, which can both be any integer (though these are usually selected very carefully depending on the problem)
+	\item \textbf{Hidden Layers} ($L_2, \dots, L_{n_{hidden} + 1}$): The layers between the first and last (exclusive) are the hidden layers. \textbf{The model's architecture is parametrised by the number of hidden layers ($n_{hidden}$), and the size of each hidden layer (the number of neurons in it)}, which can both be any integer (though these are usually selected very carefully depending on the problem). On each of these layers, a non-linear activation function is applied after activations are calculated, allowing the network to capture non-linear relations (eg. ReLU).
 	
 	\item \textbf{Output Layer} ($L_{n_{hidden + 2}}$): The final layer of the network is the output layer. Here, each neuron's activation values correspond (through some function) to the likelihood that the datapoint currently being inferenced belongs to a distinct class. This unknown function is called a non-linear activation function, and \textbf{is another parameter in the model's architecture}, with the softmax function being most commonly applied to classification tasks. We also have the relation:
 	\begin{flalign}
@@ -117,16 +117,16 @@ The Feed-Forward Network (FFN) is a versatile network architecture for deep neur
 \end{itemize}
 While the model architecture is parametrised by the number of hidden layers, size of each hidden layer, and the choice of activation function to be applied at the output layer, being a machine learning architecture, it also contains a large number of trainable parameters. We omit discussion of the training procedure, due to it being out of scope for this project.\bigskip
 
-The output of the training are the trainable parameters, the weights \& biases. As mentioned earlier, $\forall i > 1$, each neuron in $L_i$ is connected to each neuron in the layer $L_{i-1}$ by a weighted edge. Then, the weights matrix for this layer is simply an adjacency matrix representation of the subgraph induced by these adjoining edges. Then, if $|L_i| = n_i, |L_{i - 1} = n_{i - 1}$, the weights matrix for this layer $W_i: n_i \times n_{i - 1}$. The propagation formula for the FFN at this layer is given by:
+The output of the training are the trainable parameters, the weights \& biases. As mentioned earlier, $\forall i > 1$, each neuron in $L_i$ is connected to each neuron in the layer $L_{i-1}$ by a weighted edge. Then, the weights matrix for this layer is simply a submatrix of the adjacency matrix representation of the subgraph induced by these adjoining edges (if we discard the matrix elements corresponding to nodes not joined by an edge, i.e., nodes in the same layer). Then, if $|L_i| = n_i, |L_{i - 1}| = n_{i - 1}$, the weights matrix for this layer $W_i: n_i \times n_{i - 1}$. The propagation formula for the FFN at this layer is given by:
 \begin{flalign}
-	X_i = W_iX_{i - 1} + B_i\label{eq:3}
+	X_i = \text{Activation}(W_iX_{i - 1} + B_i\label{eq:3})
 \end{flalign}
-Where $X_i, X_{i - 1}$ are the neuron activations at layers $i, (i - 1)$ respectively (these are column vectors, so $X_i: n_i \times 1, X_{i - 1}: n_{i - 1} \times 1$), and $B_i: n_i \times 1$ is the bias column vector for this layer (trained parameter). The knowledge that activation vectors ($X_i$s) are represented as column vectors, along with an understanding of matrix multiplication can be used to derive the following lemmas:
+Where $X_i, X_{i - 1}$ are the neuron activations at layers $i, (i - 1)$ respectively (these are column vectors, so $X_i: n_i \times 1, X_{i - 1}: n_{i - 1} \times 1$), $B_i: n_i \times 1$ is the bias column vector for this layer (trained parameter), and Activation($\cdot$) is the non-linear activation function (preserves matrix dimension). The knowledge that activation vectors ($X_i$s) are represented as column vectors, along with an understanding of matrix multiplication can be used to derive the following lemmas:
 \begin{lemma}
-	Given the weights matrix $W_i: a \times b$ at layer $L_i$, we have that $n_{i - 1} = a$.
+	Given the weights matrix $W_i: a \times b$ at layer $L_i$, we have that $n_{i - 1} = b$.
 \end{lemma}
 \begin{lemma}
-	Given the weights matrix $W_i: a \times b$ at layer $L_i$, we have that $n_i = b$.
+	Given the weights matrix $W_i: a \times b$ at layer $L_i$, we have that $n_i = a$.
 \end{lemma}
 Which we will use later.
 
@@ -134,11 +134,11 @@ Which we will use later.
 \subsection{Existing Neural Network Libraries}
 Before we implement custom logic for reconstructing and running inference on a FFN, we first check the Haskell ecosystem for any existing neural network/machine learning libraries.\bigskip
 
-We immediately found \href{https://hackage.haskell.org/package/neural}{neural}, a pure haskell framework for training and inferencing on various kinds of neural networks. Additionally, we find \href{https://github.com/HuwCampbell/grenade}{grenade}, \href{https://hackage.haskell.org/package/neural-network-hmatrix}{neural-network-hmatrix}, and \href{https://hackage.haskell.org/package/hnn}{hnn}. Unfortunately, all of them have the same problem.\bigskip
+We immediately found \href{https://hackage.haskell.org/package/neural}{neural}, a pure haskell framework for training and inferencing on various kinds of neural networks. Additionally, we find \href{https://github.com/HuwCampbell/grenade}{grenade}, \href{https://hackage.haskell.org/package/neural-network-hmatrix}{neural-network-hmatrix}, and \href{https://hackage.haskell.org/package/hnn}{hnn}. Unfortunately, all of them have the same problems.\bigskip
 
-For our chosen problem, they are all overkill, attempting to provide a generic framework for training and using neural networks. The training part adds the majority of the overhead to the interfaces provided by these libraries, but we do not require any training support for this project. Adding to this, our project only cares about a very specific architecture, the FFN, whereas these projects pursue generalisability, leading to a less overall flexible (programmatic) interface for our case, compared to one we design on our own.\bigskip
+For our chosen problem, they are all overkill, attempting to provide a generic framework for training and using neural networks. The training part adds the majority of the overhead to the interfaces provided by these libraries, but we do not require any training support for this project. Adding to this, our project only cares about a very specific architecture, the FFN, whereas these projects pursue support for many architectures, leading to a less overall flexible (programmatic) interface for our case, compared to one we design on our own.\bigskip
 
-For these reasons, we choose to implement the inference without the help of a deep learning library.
+For these reasons, we choose to implement the inference without the support of a deep learning library.
 
 \subsection{Fast Linear Algebra in Haskell}
 As seen in \eqref{eq:3}, the computation we perform during inference is essentially a series of matrix multiplications (and additions). In order to optimise this, our first task is to determine how haskell supports these operations.\bigskip
@@ -159,7 +159,7 @@ As seen in \eqref{eq:3}, the computation we perform during inference is essentia
 \end{table}
 At a cursory glance, it can be seen that \href{https://wiki.haskell.org/Applications_and_libraries/Mathematics#Linear_algebra}{there are various linear algebra libraries available for use with haskell}. In order to hone down on one library for usage, \href{https://github.com/Magalame/fastest-matrices}{this benchmark from 2015} is the best evidence we have to go off (short of running our own benchmark). Table \ref{tab:1} displays their results for the matrix multiplication task.\bigskip
 
-According to this benchmark, the \href{https://hackage.haskell.org/package/hmatrix}{Hmatrix} library achieves SOTA performance for both the matrix multiplication and repeated matrix multiplication task. Then, we choose to utilise this library for maximising performance.
+According to this benchmark, the \href{https://hackage.haskell.org/package/hmatrix}{Hmatrix} library achieves SOTA performance for both the matrix multiplication and repeated matrix multiplication task (in a single-threaded setup). Then, we choose to utilise this library for maximising performance.
 
 \section{Problem Statement}
 \subsection{Problem Statement}
@@ -374,6 +374,9 @@ matrix = do
 And so on we go, composing our parsers all the way up the chain until we have a fully functional model file parser. It is hard to overstate the convenience and confidence this approach of writing a parser provides, where we can incrementally test each stage of our parser, using it as a foundation for the next layer.
 
 \subsubsection{Challenges \& Mitigation}
+\subsubsection{no folding :(}
+\subsubsection{LAPack \& Blas}
+
 \subsubsection{Batch inference}
 As a prerequisite for this section, here's what the network data structure looks like:
 \begin{lstlisting}
@@ -494,6 +497,7 @@ batchSoftmax mat = submatrix 1 rows 1 inputCols (foldr folder (fromList rows 1 [
 	\item Functionality is limited to feed-forward classifiers, though this is purely due to presentation of the output
 	\item The command-line interface, while designed for usability, still may serve as a barrier for the most technically-challenged individuals
 	\item Requires the weights to be in a well-known format, and for the user to locate the weights file manually
+	\item Class labels aren't currently considered
 \end{itemize}
 
 \section{Conclusions}
@@ -513,7 +517,7 @@ The choice to develop tests \& more robust runtime checks for the existing featu
 
 \section{Extensions \& Future Work}
 \begin{itemize}
-	\item Infer the format of the weights file based on a few well-known formats (.pkl, .pth, .safetensors), instead of only working for safetensors. This requires more than just looking at the extension, as we have to further infer where the weights and biases of each layer lie based on the keys in the file. 
+	\item Infer the format of the weights file based on a few well-known formats (.pkl, .pth, .safetensors), instead of only working for our custom format. This requires more than just looking at the extension, as we have to further infer where the weights and biases of each layer lie based on the keys in the file. 
 \end{itemize}
 
 \section{References}

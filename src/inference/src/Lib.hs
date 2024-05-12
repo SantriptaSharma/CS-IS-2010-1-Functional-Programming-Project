@@ -2,11 +2,8 @@ module Lib
     (Layer(..), Network, vec2class, mat2classes, inferSingle, inferBatch)
 where
 
-import Data.List (elemIndex)
-import Data.Matrix (Matrix, colVector, getCol, transpose, toLists, ncols, nrows, (<|>), fromList, submatrix)
-import Data.Vector (Vector)
-
-import qualified Data.Vector as Vec (maxIndex)
+import Numeric.LinearAlgebra.Data (R, Matrix, Vector, maxIndex, toColumns, fromColumns, cmap, cols, repmat)
+import Numeric.LinearAlgebra (scale, sumElements)
 
 -- TODO: test dimensions on loading
 type Network = [Layer]
@@ -14,77 +11,73 @@ type Network = [Layer]
 data Layer = Layer {
         inDim :: Int,
         outDim :: Int,
-        weights :: Matrix Double,
-        biases :: Matrix Double
+        weights :: Matrix R,
+        biases :: Matrix R
     }
 
 -- TODO: check shape
-mat2classes :: Matrix Double -> [Int]
-mat2classes mat = maxInd <$> (toLists . transpose) mat
-    where
-        maxInd :: [Double] -> Int
-        maxInd xs = case elemIndex (maximum xs) xs of
-            Just i -> i
-            Nothing -> error "No maximum element found?"
+mat2classes :: Matrix R -> [Int]
+mat2classes mat = maxIndex <$> toColumns mat
 
-vec2class :: Vector Double -> Int
-vec2class = Vec.maxIndex
+vec2class :: Vector R -> Int
+vec2class = maxIndex
 
-inferBatch :: Network -> Matrix Double -> Matrix Double
+inferBatch :: Network -> Matrix R -> Matrix R
 inferBatch net input = softLayer (foldl reluLayer input nonLinear) final
     where
         size = length net
         nonLinear = take (size - 1) net
         final = last net
 
-        inputCols = ncols input
+        nCols = cols input
 
-        expandCols :: Matrix Double -> Matrix Double
-        expandCols mat = foldr (\_ acc -> acc <|> mat) mat [1..inputCols]
+        expandCols :: Matrix R -> Matrix R
+        expandCols mat = repmat mat 1 nCols
 
-        inferLayer :: Matrix Double -> Layer -> Matrix Double
-        inferLayer inp (Layer _ _ w b) = w * inp + expandCols b
+        inferLayer :: Matrix R -> Layer -> Matrix R
+        inferLayer inp (Layer _ _ w b) = (w <> inp) + expandCols b
 
-        reluLayer :: Matrix Double -> Layer -> Matrix Double
+        reluLayer :: Matrix R -> Layer -> Matrix R
         reluLayer inp lay = relu (inferLayer inp lay)
 
-        softLayer :: Matrix Double -> Layer -> Matrix Double
+        softLayer :: Matrix R -> Layer -> Matrix R
         softLayer inp lay = batchSoftmax (inferLayer inp lay)
 
-        batchSoftmax :: Matrix Double -> Matrix Double
-        batchSoftmax mat = submatrix 1 rows 1 inputCols (foldr folder (fromList rows 1 [1..]) [1..inputCols])
+        batchSoftmax :: Matrix R -> Matrix R
+        batchSoftmax mat = fromColumns (foldr folder [] [1..nCols])
             where
-                rows = nrows mat
-                folder :: Int -> Matrix Double -> Matrix Double
-                folder colIdx acc = colVector ((/ denom col) . exp <$> col) <|> acc
-                    where col = getCol colIdx mat
+                folder :: Int -> [Vector R] -> [Vector R]
+                folder colIdx acc =  scale (1/denom col) (cmap exp col):acc
+                    where col = toColumns mat !! (colIdx - 1)
 
-                denom :: Vector Double -> Double
-                denom col = sum (exp <$> col)
+                denom :: Vector R -> R
+                denom col = sumElements (cmap exp col)
 
-inferSingle :: Network -> Vector Double -> Vector Double
-inferSingle net input = getCol 1 $ softLayer (foldl reluLayer inpMat nonLinear) final
+inferSingle :: Network -> Vector R -> Vector R
+inferSingle net input = head $ toColumns $ softLayer (foldl reluLayer inpMat nonLinear) final
     where
-        inpMat = colVector input
+        inpMat = fromColumns [input]
         size = length net
         nonLinear = take (size - 1) net
         final = last net
 
-        inferLayer :: Matrix Double -> Layer -> Matrix Double
-        inferLayer inp (Layer _ _ w b) = w * inp + b
+        inferLayer :: Matrix R -> Layer -> Matrix R
+        inferLayer inp (Layer _ _ w b) = (w <> inp) + b
 
-        reluLayer :: Matrix Double -> Layer -> Matrix Double
+        reluLayer :: Matrix R -> Layer -> Matrix R
         reluLayer inp lay = relu (inferLayer inp lay)
 
-        softLayer :: Matrix Double -> Layer -> Matrix Double
+        softLayer :: Matrix R -> Layer -> Matrix R
         softLayer inp lay = softmax (inferLayer inp lay)
 
-relu :: Matrix Double -> Matrix Double
-relu = fmap (max 0)
+relu :: Matrix R -> Matrix R
+relu = cmap (max 0)
 
-softmax :: Matrix Double -> Matrix Double
-softmax v = (/ denom) . exp <$> v
-            where denom = sum (exp <$> v)
+softmax :: Matrix R -> Matrix R
+softmax v = scale (1/denom) (cmap exp v)
+            where
+                denom :: R
+                denom = sumElements (cmap exp v)
 
 instance Show Layer where
     show (Layer inD outD w b) = show inD ++ " -> " ++ show outD ++ "\n" ++ show w ++ "\n" ++ show b

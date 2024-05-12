@@ -4,8 +4,7 @@ module Main (main) where
 
 import System.Environment(getArgs)
 
-import Data.Matrix(toLists, transpose)
-import Data.Vector(fromList)
+import Numeric.LinearAlgebra.Data(toLists, tr, fromList)
 
 import Control.Monad(when)
 
@@ -29,7 +28,7 @@ batch path network = do
     contents <- readFile path
     let matrix = parseCsv contents
         output = inferBatch network matrix
-    putStrLn $ "Class probabilities: " ++ show (toLists $ transpose output)
+    putStrLn $ "Class probabilities: " ++ show (toLists $ tr output)
     putStrLn $ "Predicted classes: " ++ show (mat2classes output)
 
 main :: IO ()
