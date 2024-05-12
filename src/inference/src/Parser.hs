@@ -8,11 +8,13 @@ import qualified Numeric.LinearAlgebra.Data as Mat (matrix)
 import Lib(Network, Layer(Layer))
 import Text.ParserCombinators.Parsec
 
+
 parseNetwork :: String -> Network
 parseNetwork contents = case runParser weightsFile () "" contents of
     Left msg -> error $ "Error parsing weights file: " ++ show msg
     Right network -> network
 
+-- TODO: just use a regular csv parser man
 parseCsv :: String -> Matrix R
 parseCsv contents = case runParser csvFile () "" contents of
     Left msg -> error $ "Error parsing csv file: " ++ show msg

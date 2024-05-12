@@ -38,6 +38,7 @@ library
       base >=4.7 && <5
     , hmatrix
     , parsec
+    , timeit
   default-language: Haskell2010
 
 executable inference-exe
@@ -54,6 +55,7 @@ executable inference-exe
     , hmatrix
     , inference
     , parsec
+    , timeit
   default-language: Haskell2010
 
 test-suite inference-test
@@ -71,4 +73,5 @@ test-suite inference-test
     , hmatrix
     , inference
     , parsec
+    , timeit
   default-language: Haskell2010

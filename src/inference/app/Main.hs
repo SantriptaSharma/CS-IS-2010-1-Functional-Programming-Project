@@ -3,9 +3,9 @@
 module Main (main) where
 
 import System.Environment(getArgs)
+import System.TimeIt
 
 import Numeric.LinearAlgebra.Data(toLists, tr, fromList)
-
 import Control.Monad(when)
 
 import Lib
@@ -31,6 +31,16 @@ batch path network = do
     putStrLn $ "Class probabilities: " ++ show (toLists $ tr output)
     putStrLn $ "Predicted classes: " ++ show (mat2classes output)
 
+timedbatch :: String -> Network -> IO ()
+timedbatch path network = do
+    contents <- readFile path
+    let matrix = parseCsv contents
+    timeIt $ infer network matrix
+    where 
+        infer n m = do
+            let !_ = inferBatch n m
+            return ()
+
 main :: IO ()
 main = do
     argv <- getArgs
@@ -38,5 +48,8 @@ main = do
     when (argc < 1) $ error "Usage: inference <weights file> [<batch csv file>]"
     contents <- readFile $ head argv
     let !network = parseNetwork contents
-    if argc == 1 then repl network
-    else batch (head (tail argv)) network
+    case argc of
+        1 -> repl network
+        2 -> batch (head (tail argv)) network
+        3 -> batch (head (tail argv)) network
+        _ -> timedbatch (head (tail argv)) network
