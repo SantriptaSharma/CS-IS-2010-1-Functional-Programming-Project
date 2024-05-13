@@ -31,12 +31,24 @@ batch path network = do
     putStrLn $ "Class probabilities: " ++ show (toLists $ tr output)
     putStrLn $ "Predicted classes: " ++ show (mat2classes output)
 
+eval :: String -> String -> Network -> IO ()
+eval batchpath labpath network = do
+    batchcont <- readFile batchpath
+    labcont <- readFile labpath
+    let matrix = parseCsv batchcont
+        expected = map round (head $ toLists (parseCsv labcont)) :: [Int]
+        output = mat2classes $ inferBatch network matrix
+        correct = length (filter (uncurry (==)) (zip output expected))
+        total = length expected
+    putStrLn $ "Correctly predicted: " ++ show correct ++ "/" ++ show total
+    putStrLn $ "Accuracy: " ++ show (fromIntegral correct / fromIntegral total)
+
 timedbatch :: String -> Network -> IO ()
 timedbatch path network = do
     contents <- readFile path
     let matrix = parseCsv contents
     timeIt $ infer network matrix
-    where 
+    where
         infer n m = do
             let !_ = inferBatch n m
             return ()
@@ -50,6 +62,6 @@ main = do
     let !network = parseNetwork contents
     case argc of
         1 -> repl network
-        2 -> batch (head (tail argv)) network
-        3 -> batch (head (tail argv)) network
-        _ -> timedbatch (head (tail argv)) network
+        2 -> batch (argv !! 1) network
+        3 -> eval (argv !! 1) (argv !! 2) network
+        _ -> timedbatch (argv !! 1) network

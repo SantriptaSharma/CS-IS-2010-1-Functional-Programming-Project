@@ -358,12 +358,12 @@ src
 
 \subsection{Profiling Outcomes}
 \begin{figure}
-	\includegraphics[width=\textwidth]{../images/benchmark.png}
-	\caption{\centering \label{fig:3}a comparison of the run times of batch inference (50150 samples) with sklearn vs our implementation, for a variety of network shapes. The "big" network shape here refers to a 12-layer network}
+	\includegraphics{../images/benchmark.png}
+	\caption{\centering \label{fig:3}a comparison of the run times of sklearn vs our implementation, for a variety of network shapes. The "big" network shape here refers to a 12-layer network}
 \end{figure}
 For profiling our implementation, we consider a variety of network shapes, and run batch inference on a generated dataset of size 20150. For each network shape, we run the inference 10 times, and report the average runtime in seconds. The comparison can be seen in Figure \ref{fig:3}.\bigskip
 
-From the chart, it is apparent that despite us taking care to optimise our system, it fails to attain our profiling baseline (sklearn). In most cases, sklearn achieves a speedup of over $10$ when compared to our implementation. A quantification of how much of this disparity is an artifact of our relative inexperience with haskell vs an effect of the underlying language implementation requires further study.
+From the chart, it is apparent that despite us taking care to optimise our system, it fails to even approach our profiling baseline (sklearn). A quantification of how much this depends on our relative inexperience with Haskell vs limitations of the language implementation itself requires further study.
 
 \subsection{Limitations}
 \begin{itemize}
@@ -378,9 +378,6 @@ From the chart, it is apparent that despite us taking care to optimise our syste
 \section{Extensions \& Future Work}
 \begin{itemize}
 	\item Infer the format of the weights file based on a few well-known formats (.pkl, .pth, .safetensors), instead of only working for our custom format. This requires more than just looking at the extension, as we have to further infer where the weights and biases of each layer lie based on the keys in the file. 
-	\item The inference performance should be inspected more deeply and optimised accordingly.
-	\item Currently, we have not performed any profiling on the parser, which is a core component of the entire system.
-	\item A graphical user interface could greatly enhance the program's usability.
 \end{itemize}
 
 \section{References}

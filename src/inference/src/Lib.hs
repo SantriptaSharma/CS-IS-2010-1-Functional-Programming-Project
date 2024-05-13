@@ -2,7 +2,7 @@ module Lib
     (Layer(..), Network, vec2class, mat2classes, inferSingle, inferBatch)
 where
 
-import Numeric.LinearAlgebra.Data (R, Matrix, Vector, maxIndex, toColumns, fromColumns, cmap, cols, repmat)
+import Numeric.LinearAlgebra.Data (R, Matrix, Vector, maxIndex, toColumns, fromColumns, cmap, cols, repmat, flatten, (¿))
 import Numeric.LinearAlgebra (scale, sumElements)
 
 -- TODO: test dimensions on loading
@@ -48,7 +48,7 @@ inferBatch net input = softLayer (foldl reluLayer input nonLinear) final
             where
                 folder :: Int -> [Vector R] -> [Vector R]
                 folder colIdx acc =  scale (1/denom col) (cmap exp col):acc
-                    where col = toColumns mat !! (colIdx - 1)
+                    where col = flatten $ mat ¿ [colIdx - 1]
 
                 denom :: Vector R -> R
                 denom col = sumElements (cmap exp col)
