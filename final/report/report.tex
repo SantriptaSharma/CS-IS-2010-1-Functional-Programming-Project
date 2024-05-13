@@ -79,6 +79,10 @@
 \tableofcontents
 \newpage
 
+\section{Acknowledgements}
+I would like to thank Professor Partha Pratim Das for instructing this Independent Study Module, and allowing us to explore the expressive field of functional programming. Additionally, I would like to thank my peers also taking this course for cultivating a constructive learning environment for this course.
+\newpage
+
 \section{Introduction}
 Through the course of this project, we have developed a command-line tool to run inference on (or evaluate) an arbitrary feed-forward neural network (for classification tasks). The primary goal for the project was to gain familiarity with haskell (and the functional programming paradigm) by implementing a medium-sized project using it.\bigskip
 
@@ -87,14 +91,14 @@ In this regard, the project has been quite succesful, forcing me to cover a lot 
 Besides the learning outcomes from the project, the tool that has been developed is also useful in practical settings. It has been designed \& developed keeping in mind optimality, generalizability, and usability. An example use case of this tool is one where the user has been handed a trained classifier network (by, say, a tech-consultancy firm), and they wish to verify its performance on their data, without writing an evaluation/inference script on their own (due to time constraints or inexperience with the technology).
 
 \section{Background \& Motivation}
-\subsection{Motivation}
+\subsection{Motivation}\label{sec:3.1}
 Today, Machine Learning has left no domain untouched. What initially started as a niche subfield of statistics has now found its application in nearly every sector \& discipline. This poses a simple problem: A large chunk of the users of these models are not familiar with how they work or how to use them. This has led to widespread black-boxing, where the development/training of the model is often outsourced to someone with this technical knowledge, with the 'client' being given instructions on how to use the model.\bigskip
 
 Besides the inherent security risk, where the external party could place a backdoor into the model, this approach also forces the client to take the external party at their word when it comes to the effectiveness of the model, at least initially, which opens the door up to being defrauded. Additionally, in some cases, the instructions provided may be obtuse, rendering the client unable to use the model.\bigskip
 
 Therefore, there is a need to be served for providing a solution that can perform inference and evaluation on these models, while also being friendly to users who aren't very tech-savvy. In this project, we particularly focus on a popular subclass of ML models, the feed-forward classifier, which is a generalisation of linear/logistic regression, and a foundational piece in most deep neural networks, with this unique position leading it to be one of the most common architectures for these models.
 
-\subsection{Background: Feed-Forward Networks} \label{sec:2.2}
+\subsection{Background: Feed-Forward Networks} \label{sec:3.2}
 \begin{figure}
 	\includegraphics[width=0.8\pdfpagewidth]{../images/FFN-structure.png}
 	\caption{\label{fig:1}a generic FFN with $n_{hidden} = 2$}
@@ -143,7 +147,7 @@ For our chosen problem, they are all overkill, attempting to provide a generic f
 
 For these reasons, we choose to implement the inference without the support of a deep learning library.
 
-\subsection{Fast Linear Algebra in Haskell} \label{sec:3.2}
+\subsection{Fast Linear Algebra in Haskell} \label{sec:4.2}
 As seen in \eqref{eq:3}, the computation we perform during inference is essentially a series of matrix multiplications (and additions). In order to optimise this, our first task is to determine how haskell supports these operations.\bigskip
 
 \begin{table}
@@ -209,7 +213,7 @@ Since we are only concerned with running the inference for a new row for this da
 Then, the system can broadly be divided into two modules, the training module \& the inference module. These operate independently from each other, with the only interface between them being the inference module taking the training module's output (model structure, weights, biases) as its input, which is then used to reconstruct the model. Figure \ref{fig:2} illustrates the general flow of this architecture.
 
 \subsection{Trained Model Format}
-From Section \ref{sec:2.2}, we know that a feedforward neural network is comprised of several layers of neurons, with each layer (besides the input layer) having a matrix of weights \& a vector of biases associated with itself.\bigskip
+From Section \ref{sec:3.2}, we know that a feedforward neural network is comprised of several layers of neurons, with each layer (besides the input layer) having a matrix of weights \& a vector of biases associated with itself.\bigskip
 
 Then, our naive model format is a binary file structured as follows:
 \begin{verbatim}
@@ -274,7 +278,7 @@ The training module is written in python, using numpy, pandas, and sklearn to pe
 The inference module is written in Haskell. We use the Haskell Tool Stack (or just Stack) as our build tool. The following dependencies are used:
 \begin{itemize}
 	\item \textbf{hmatrix}\\
-	As described earlier in \ref{sec:3.2}, this library provides vector \& matrix types, along with the definitions for common mathematical operations on them, including matrix multiplication, conversions, etc.\bigskip
+	As described earlier in \ref{sec:4.2}, this library provides vector \& matrix types, along with the definitions for common mathematical operations on them, including matrix multiplication, conversions, etc.\bigskip
 
 	It is the backbone of tensor support module, which is used to finally perform the inference once the inputs have been parsed.
 
@@ -294,13 +298,36 @@ A mix of bash \& python scripts is used to implement the end-to-end tests and ce
 Due to the large number of disjoint moving parts in the project, the plan is to implement a comprehensive test suite consisting of unit \& end-to-end tests. Additionally, we will be profiling our system to ensure it meets the real-time requirements.
 
 \subsubsection{Unit Testing}
-First, we note that the training module does not require testing, due to its simplicity and it almost exclusively using sklearn library functions. For the inference module, all the parser functions, and many of the inference functions are complex enough to warrant unit testing. We plan to implement these using HSpec, which is the testing framework Stack provides.\bigskip
+First, we note that the training module does not require testing, due to its simplicity and it almost exclusively using sklearn library functions. For the inference module, all the inference functions are complex enough to warrant unit testing.\bigskip
 
-In order to cover the large space of inputs for these functions, we plan to heavily depend on generated test suites, as opposed to hand-crafted ones.
+As it stands, the batch inference function is tested by the end-to-end test. Therefore, we focus our attention on the single-row inference function.
 
-Consider two examples: \textbf{REWRITE BEFORE SUBMITTING}
+Using HSpec, the default testing framework included with the Haskell stack, we test this function for three cases:
+\begin{itemize}
+	\item Empty Network: Should throw an error
+	\item Invalid Input Dimensions: Should throw an error
+	\item Correct Functioning: In a manually configured, shallow network, we use randomly generated valid inputs to check our function against the explicit formula for computing the output activations, confirming if they are the same.
+\end{itemize}
 
-\subsubsection{End-to-End Testing}\label{sec:7.2.2}
+Example implementations of the test can be seen below:
+\begin{lstlisting}
+main = hspec $ do
+describe "Lib.inferSingle" $ do
+	it "fails on receiving an empty network" $ do
+		evaluate (inferSingle [] defaultInputVec) `shouldThrow` anyException
+
+	it "fails on receiving incorrect dimensions" $ do
+		evaluate (inferSingle defaultNetwork (fromList [1, 2, 3, 4])) `shouldThrow` anyException
+
+	it "successfully acquires correct activations for one hidden layer" $
+		property $ \x xs -> do
+			let inp = randomVector (x :: Int) 3
+				expected = softmax ((oneLayerW2 <> relu ((oneLayerW1 <> inp) + oneLayerB1)) + oneLayerB2)
+			inferSingle oneLayerNet inp `shouldBe` expected
+\end{lstlisting}
+Here, the only thing of note is the third case, where we utilise the \verb|property| test provided by HSpec + QuickTest, which runs the test many times with different values of \verb|x|, which is used to seed the random vector generator.
+
+\subsubsection{End-to-End Testing}\label{sec:8.2.2}
 We use an end-to-end test to verify the correctness of our inference module. Here, we treat our sklearn model as an oracle, randomly generating many batches of feature vectors (in addition to the existing test split), running them through both our oracle \& the inference module, and comparing the output activations using mean square error.
 
 \subsubsection{Profiling}
@@ -344,14 +371,62 @@ data Layer = Layer {
 	}
 \end{lstlisting}
 Here, we can see that the entire network is simply represented as a list of layers, with each layer storing its weights \& biases. The \verb|Matrix| type is imported from the hmatrix library, and \verb|R| is simply an alias for the double type.
-% \subsubsection{Parsing a model file}
+\subsubsection{Parsing a model file}
+With cereal, parsing the binary data format is quite uncomplicated. We have defined two functions:
+\begin{lstlisting}
+modelFileHead :: Get Network
+modelFileHead = do
+	layers <- getInt32le
+	inputNeurons <- getInt32le
+	modelFileCont (fromIntegral layers) (fromIntegral inputNeurons)
+
+modelFileCont :: Int -> Int -> Get Network
+modelFileCont left neuronsPrev = do
+	if left == 0 then return []
+	else do
+		neurons <- getInt32le
+		weightsList <- getDoubles (fromIntegral neurons * neuronsPrev)
+		biasesList <- getDoubles (fromIntegral neurons)
+		let weights = matrix neuronsPrev weightsList
+			biases = matrix 1 biasesList
+			layer = Layer weights biases
+		rest <- modelFileCont (left - 1) (fromIntegral neurons)
+		return $ layer:rest
+	where
+		getDoubles ::  Int -> Get [Double]
+		getDoubles n = do
+			if n == 0 then return []
+			else do
+				double <- getFloat64le
+				rest <- getDoubles (n - 1)
+				return $ double:rest	
+\end{lstlisting}
+The \verb|modelFileHead| function is responsible for parsing the "header" of the binary file, containing information about the number of layers and the number of neurons in the input layer. After this, we simply call the iterative \verb|modelFileCont|(ents) function, which iteratively parses and constructs the memory representation for each layer of the network.
 
 \subsubsection{Challenges \& Mitigation}
-\subsubsection{Migrating Libraries}
-\subsubsection{Initial Performance}
-\subsubsection{LAPack \& Blas}
-\subsubsection{Batch inference}
+Over the course of designing \& implementing the system, we ran into several pitfalls:
+\begin{enumerate}
+	\item \textbf{Migrating Libraries:}\\
+	During the final stage of the project, we made several migrations to different libraries. Some of them were somewhat planned, for instance, the migration away from parsec, in favour of a binary file parsing library. However, even this one did not entirely go to plan. Initially, the idea was to swap to attoparsec, which would allow us to retain much of the structure of the initial parser. Unfortunately, attoparsec did not support parsing IEEE754 double precision floating point numbers out of the box, and would require us to implement our own conversion from its bitfields to the haskell type. As such, we decided to look further, finding the cereal library, which perfectly fit our needs.\bigskip
 
+	While this migration went off relatively smoothly, besides the wasted time, some were more challenging. In the initial prototype we were naively using the Haskell standard matrix \& vector libraries. However, upon completing our literature survey, we realised that this was unacceptably slow compared to its alternatives, leading to us migrating to hmatrix, which in addition to requiring a rewrite of the entire inference module, also had some larger complications:
+
+	\item \textbf{LAPack \& Blas}\\
+	hmatrix owes most of its speed gains to it essentially being a wrapper for the industry standard numerical linear algebra packages, LAPack \& Blas, which are written in C. While the speed advantage this interoperation provides is great, it also brings with it a few challenges related to dependency management. Once we had rewritten the inference module for the new hmatrix backend, we realised that our project no longer compiled, owing to it missing these dependencies.\bigskip
+
+	Trying to satisfy these dependencies led us down a small rabbithole, due to only finding very old and unreliable answers online, which was eventually resolved by a simple look into the Haskell Tool Stack documentation, which revealed that, on windows, it maintains its own MSYS2 environment. After installing LAPack \& Blas onto this environment, these issues were resolved, but not without taking away a lot of time from the development of the project.
+
+	\item \textbf{Initial Benchmarks}\\
+	In a later section, we talk about our benchmarks, and how they are less than satisfactory. However, in our initial benchmarks, even after the migration to hmatrix, we observed far worse results. After a bit of sleuthing, the culprit was narrowed down to an unsuspecting line of code:
+	\begin{lstlisting}
+col = (toColumns mat) !! colIdx
+	\end{lstlisting}
+	Put simply, this converts the matrix \verb|mat| into a list of column vectors, and then indexes that list to find the column at \verb|colIdx|. Of course, the problem we overlooked is that indexing raw lists in O(n) in Haskell, leading to bad outcomes. After discovering the column extraction operator in hmatrix, we simplified this line to:
+	\begin{lstlisting}
+col = flatten $ mat ? [colIdx - 1]
+	\end{lstlisting}
+	Which immediately led to an appreciable speedup of 4x. This is a testament to how, when interop is used to speed up computation, performance issues can often be invisiblised and easy to miss.
+\end{enumerate}
 
 \section{Results \& Discussion}
 \subsection{Example Runs}
@@ -368,6 +443,12 @@ Here, we can see that the entire network is simply represented as a list of laye
 	\begin{center}
 		Batched Mode
 	\end{center}
+	\begin{center}
+		\includegraphics[width=\textwidth]{../images/exampleeval.png}
+	\end{center}
+	\begin{center}
+		Evaluation Mode
+	\end{center}
 }
 
 \begin{figure}[H]
@@ -375,7 +456,7 @@ Here, we can see that the entire network is simply represented as a list of laye
 	\caption{\centering \label{fig:3}the mean square error between the output activations observed in batch inference using sklearn and our system, on a variety of network shapes. The "big" network shape here refers to a 12-layer network}
 \end{figure}
 \subsection{Testing Outcomes}
-During our end-to-end testing, as mentioned earlier in section \ref{sec:7.2.2}, we compare the output activations after batch inference from sklearn and our implementation. We run the inference on a batch of 20150 datapoints which we generate from the original testing set (sampling from the distribution of features in the original set). Figure \ref{fig:3} summarises our findings, displaying that the deviations observed are of the order of $10^{-17}$ or $10^{-16}$ in the extreme case, which can be chalked up to floating point truncation errors that occur while reading the output of the inference module in the end-to-end testing script.
+During our end-to-end testing, as mentioned earlier in section \ref{sec:8.2.2}, we compare the output activations after batch inference from sklearn and our implementation. We run the inference on a batch of 20150 datapoints which we generate from the original testing set (sampling from the distribution of features in the original set). Figure \ref{fig:3} summarises our findings, displaying that the deviations observed are of the order of $10^{-32}$ to $10^{-30}$ in the extreme case, which are extremely minute and can be chalked up to floating point truncation or rounding errors that occur while reading the output of the inference module in the end-to-end testing script.
 
 \subsection{Profiling Outcomes}
 \begin{figure}
@@ -395,6 +476,11 @@ From the chart, it is apparent that despite us taking care to optimise our syste
 \end{itemize}
 
 \section{Conclusions}
+We have built a successful baseline inference package using haskell, though it is clear that it is far from complete. Besides lacking many configuration options and flexibility, it also fails to achieve the performance one would expect from a more standard package implemented in python with something like sklearn. Nonetheless, we have developed an accurate and acceptably performant system for inferencing feed-forward network classifiers.\bigskip
+
+Further, we have expanded the scope of the project from the intial problem statement to provide a more general solution than was expected. In doing so, we have also provided a partial solution to the black-boxing problem discussed in section \ref{sec:3.1}.\bigskip
+
+Finally, we were able to propose a specialised format for serializing trained feed-forward classifiers, which is space effective and utilises our understanding of the network architecture to achieve this optimisation.
 
 \section{Extensions \& Future Work}
 \begin{itemize}
@@ -402,9 +488,18 @@ From the chart, it is apparent that despite us taking care to optimise our syste
 	\item The inference performance should be inspected more deeply and optimised accordingly.
 	\item Currently, we have not performed any profiling on the parser, which is a core component of the entire system.
 	\item A graphical user interface could greatly enhance the program's usability.
+	\item Model input space could be extended to accept more architectures, such as support-vector machines or decision trees.
 \end{itemize}
 
 \section{References}
+\begin{enumerate}
+	\item \href{https://github.com/Magalame/fastest-matrices}{Haskell Linear Algebra Libraries Benchmark}
+	\item \href{https://hoogle.haskell.org/}{Hoogle: Haskell Documentation Search Engine}
+	\item \href{https://docs.haskellstack.org/}{Haskell Tool Stack Documentation}
+	\item \href{https://hackage.haskell.org/}{Hackage: Haskell Package Registry}
+	\item \href{https://wiki.haskell.org/}{Haskell Wiki}
+	\item \href{https://book.realworldhaskell.org/}{Real World Haskell: An Introductory Book on Haskell}
+\end{enumerate}
 
 \end{document}
 
