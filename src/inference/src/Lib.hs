@@ -2,20 +2,16 @@ module Lib
     (Layer(..), Network, vec2class, mat2classes, inferSingle, inferBatch)
 where
 
-import Numeric.LinearAlgebra.Data (R, Matrix, Vector, maxIndex, toColumns, fromColumns, cmap, cols, repmat, flatten, (¿))
+import Numeric.LinearAlgebra.Data (R, Matrix, Vector, maxIndex, toColumns, fromColumns, cmap, rows, cols, repmat, flatten, (¿))
 import Numeric.LinearAlgebra (scale, sumElements)
 
--- TODO: test dimensions on loading
 type Network = [Layer]
 
 data Layer = Layer {
-        inDim :: Int,
-        outDim :: Int,
         weights :: Matrix R,
         biases :: Matrix R
     }
 
--- TODO: check shape
 mat2classes :: Matrix R -> [Int]
 mat2classes mat = maxIndex <$> toColumns mat
 
@@ -35,7 +31,7 @@ inferBatch net input = softLayer (foldl reluLayer input nonLinear) final
         expandCols mat = repmat mat 1 nCols
 
         inferLayer :: Matrix R -> Layer -> Matrix R
-        inferLayer inp (Layer _ _ w b) = (w <> inp) + expandCols b
+        inferLayer inp (Layer w b) = (w <> inp) + expandCols b
 
         reluLayer :: Matrix R -> Layer -> Matrix R
         reluLayer inp lay = relu (inferLayer inp lay)
@@ -62,7 +58,7 @@ inferSingle net input = head $ toColumns $ softLayer (foldl reluLayer inpMat non
         final = last net
 
         inferLayer :: Matrix R -> Layer -> Matrix R
-        inferLayer inp (Layer _ _ w b) = (w <> inp) + b
+        inferLayer inp (Layer w b) = (w <> inp) + b
 
         reluLayer :: Matrix R -> Layer -> Matrix R
         reluLayer inp lay = relu (inferLayer inp lay)
@@ -80,4 +76,4 @@ softmax v = scale (1/denom) (cmap exp v)
                 denom = sumElements (cmap exp v)
 
 instance Show Layer where
-    show (Layer inD outD w b) = show inD ++ " -> " ++ show outD ++ "\n" ++ show w ++ "\n" ++ show b
+    show (Layer w b) = show (cols w) ++ " -> " ++ show (rows w) ++ "\n" ++ show w ++ "\n" ++ show b

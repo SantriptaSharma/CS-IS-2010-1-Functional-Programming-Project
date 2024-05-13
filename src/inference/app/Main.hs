@@ -8,6 +8,9 @@ import System.TimeIt
 import Numeric.LinearAlgebra.Data(toLists, tr, fromList)
 import Control.Monad(when)
 
+import Data.ByteString as B(readFile)
+import Data.ByteString.Lazy as BL(readFile)
+
 import Lib
 import Parser
 
@@ -25,7 +28,7 @@ repl network = do
 
 batch :: String -> Network -> IO ()
 batch path network = do
-    contents <- readFile path
+    contents <- BL.readFile path
     let matrix = parseCsv contents
         output = inferBatch network matrix
     putStrLn $ "Class probabilities: " ++ show (toLists $ tr output)
@@ -33,8 +36,8 @@ batch path network = do
 
 eval :: String -> String -> Network -> IO ()
 eval batchpath labpath network = do
-    batchcont <- readFile batchpath
-    labcont <- readFile labpath
+    batchcont <- BL.readFile batchpath
+    labcont <- BL.readFile labpath
     let matrix = parseCsv batchcont
         expected = map round (head $ toLists (parseCsv labcont)) :: [Int]
         output = mat2classes $ inferBatch network matrix
@@ -45,7 +48,7 @@ eval batchpath labpath network = do
 
 timedbatch :: String -> Network -> IO ()
 timedbatch path network = do
-    contents <- readFile path
+    contents <- BL.readFile path
     let matrix = parseCsv contents
     timeIt $ infer network matrix
     where
@@ -58,7 +61,7 @@ main = do
     argv <- getArgs
     let argc = length argv
     when (argc < 1) $ error "Usage: inference <weights file> [<batch csv file>]"
-    contents <- readFile $ head argv
+    contents <- B.readFile $ head argv
     let !network = parseNetwork contents
     case argc of
         1 -> repl network

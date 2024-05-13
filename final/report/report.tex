@@ -3,7 +3,7 @@
 \usepackage{hyperref}
 \usepackage{listings}
 \usepackage{color}
-
+\usepackage{float}
 \usepackage{tocloft}
 
 \cftsetindents{section}{0em}{2em}
@@ -278,12 +278,17 @@ The inference module is written in Haskell. We use the Haskell Tool Stack (or ju
 
 	It is the backbone of tensor support module, which is used to finally perform the inference once the inputs have been parsed.
 
-	\item \textbf{\href{https://hackage.haskell.org/package/attoparsec}{attoparsec}}\\
-	Attoparsec is a highly performant parser combinator library, focusing on complex text \& binary file formats. Attoparsec forms the foundations of the parsing support module, which is used for parsing both the model files \& csv files for batched input/evaluation mode.
+	\item \textbf{\href{https://hackage.haskell.org/package/cereal}{cereal}}\\
+	Cereal is a highly performant serialization library for binary data formats. We choose it over the alternatives due to its out of the box support for parsing IEEE754 double-precision floating point numbers from binary files, which the alternatives (like binary or attoparsec) do not support.\bigskip
+
+	It is used by the parsing support module to parse our model files.
+
+	\item \textbf{\href{https://hackage.haskell.org/package/cassava-0.5.3.1}{cassava}}\\
+	Cassava is Haskell's most popular library for working with csv data, which we use to parse batch dataset \& groundtruth files.
 \end{itemize}
 
 \subsubsection{Testing/Miscellaneous}
-A mix of bash \& python scripts is used to implement the end-to-end tests and certain convenient utilities (eg. infer.py for loading and making predictions using sklearn, used to verify inference module). We also utilise the \href{https://hackage.haskell.org/package/timeit}{timeit} package to benchmark our performance.
+A mix of bash \& python scripts is used to implement the end-to-end tests and certain convenient utilities (eg. infer.py for loading and making predictions using sklearn, used to verify inference module). We also utilise the haskell \href{https://hackage.haskell.org/package/timeit}{timeit} package to benchmark our inference performance.
 
 \subsection{Test Suite}
 Due to the large number of disjoint moving parts in the project, the plan is to implement a comprehensive test suite consisting of unit \& end-to-end tests. Additionally, we will be profiling our system to ensure it meets the real-time requirements.
@@ -293,17 +298,13 @@ First, we note that the training module does not require testing, due to its sim
 
 In order to cover the large space of inputs for these functions, we plan to heavily depend on generated test suites, as opposed to hand-crafted ones.
 
-Consider two examples:
-\begin{itemize}
-	\item \textbf{For the matrix parser:} We generate random real-valued matrices, stringify them, run them through the parser, and verify that the same matrix is recovered.
-	\item \textbf{For batch softmax:} Use single-vector inference softmax as oracle and verify batch softmax.
-\end{itemize}
+Consider two examples: \textbf{REWRITE BEFORE SUBMITTING}
 
-\subsubsection{End-to-End Testing}
+\subsubsection{End-to-End Testing}\label{sec:7.2.2}
 We use an end-to-end test to verify the correctness of our inference module. Here, we treat our sklearn model as an oracle, randomly generating many batches of feature vectors (in addition to the existing test split), running them through both our oracle \& the inference module, and comparing the output activations using mean square error.
 
 \subsubsection{Profiling}
-To profile our inference, we run batch prediction on networks with various shapes, timing how long the inference itself takes, and compare it with the time taken to run the same inferences in python with scikit-learn.
+To profile our inference implementation, we run batch prediction on networks with various shapes, timing how long the inference itself takes, and compare it with the time taken to run the same inferences in python with scikit-learn.
 
 \subsection{Implementation}
 \subsubsection{Project Structure}
@@ -328,7 +329,22 @@ src
 \end{verbatim}
 
 \subsubsection{Functionality/User Flow}
-\subsubsection{Parsing a model file}
+\begin{center}
+	\includegraphics[width = \textwidth]{../images/UserFlow.png}
+\end{center}
+
+\subsubsection{Data Structures for Reconstruction}
+In order to represent our loaded model architecture in memory, we define the following data structure in \verb|Lib.hs|:
+\begin{lstlisting}
+type Network = [Layer]
+
+data Layer = Layer {
+		weights :: Matrix R,
+		biases :: Matrix R
+	}
+\end{lstlisting}
+Here, we can see that the entire network is simply represented as a list of layers, with each layer storing its weights \& biases. The \verb|Matrix| type is imported from the hmatrix library, and \verb|R| is simply an alias for the double type.
+% \subsubsection{Parsing a model file}
 
 \subsubsection{Challenges \& Mitigation}
 \subsubsection{Migrating Libraries}
@@ -354,14 +370,19 @@ src
 	\end{center}
 }
 
+\begin{figure}[H]
+	\includegraphics[width=\textwidth]{../images/mse.png}
+	\caption{\centering \label{fig:3}the mean square error between the output activations observed in batch inference using sklearn and our system, on a variety of network shapes. The "big" network shape here refers to a 12-layer network}
+\end{figure}
 \subsection{Testing Outcomes}
+During our end-to-end testing, as mentioned earlier in section \ref{sec:7.2.2}, we compare the output activations after batch inference from sklearn and our implementation. We run the inference on a batch of 20150 datapoints which we generate from the original testing set (sampling from the distribution of features in the original set). Figure \ref{fig:3} summarises our findings, displaying that the deviations observed are of the order of $10^{-17}$ or $10^{-16}$ in the extreme case, which can be chalked up to floating point truncation errors that occur while reading the output of the inference module in the end-to-end testing script.
 
 \subsection{Profiling Outcomes}
 \begin{figure}
 	\includegraphics[width=\textwidth]{../images/benchmark.png}
-	\caption{\centering \label{fig:3}a comparison of the run times of batch inference (50150 samples) with sklearn vs our implementation, for a variety of network shapes. The "big" network shape here refers to a 12-layer network}
+	\caption{\centering \label{fig:4}a comparison of the run times of batch inference (50150 samples) with sklearn vs our implementation, for a variety of network shapes. The "big" network shape here refers to a 12-layer network}
 \end{figure}
-For profiling our implementation, we consider a variety of network shapes, and run batch inference on a generated dataset of size 20150. For each network shape, we run the inference 10 times, and report the average runtime in seconds. The comparison can be seen in Figure \ref{fig:3}.\bigskip
+For profiling our implementation, we consider a variety of network shapes, and run batch inference on a generated dataset of size 20150. For each network shape, we run the inference 10 times, and report the average runtime in seconds. The comparison can be seen in Figure \ref{fig:4}.\bigskip
 
 From the chart, it is apparent that despite us taking care to optimise our system, it fails to attain our profiling baseline (sklearn). In most cases, sklearn achieves a speedup of over $10$ when compared to our implementation. A quantification of how much of this disparity is an artifact of our relative inexperience with haskell vs an effect of the underlying language implementation requires further study.
 
