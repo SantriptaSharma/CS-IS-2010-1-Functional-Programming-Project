@@ -415,6 +415,7 @@ for each non-input layer in the network:
   \begin{itemize}
     \item The command-line interface, while designed for usability, still may serve as a barrier for the most technically-challenged individuals
     \item Requires the weights to be in a particular format
+    \item During interactive inference, invalid inputs are not handled gracefully
     \item Class labels aren't currently considered, which hinders readability
     \item The system's performance, while optimised, fails to compete with sklearn's.
   \end{itemize}

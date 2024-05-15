@@ -85,7 +85,6 @@ test-suite inference-test
     , hmatrix
     , hspec
     , inference
-    , random
     , text
     , timeit
     , vector

@@ -1,8 +1,8 @@
 module Lib
-    (Layer(..), Network, vec2class, mat2classes, inferSingle, inferBatch)
+    (Layer(..), Network, vec2class, mat2classes, inferSingle, inferBatch, softmax, relu)
 where
 
-import Numeric.LinearAlgebra.Data (R, Matrix, Vector, maxIndex, toColumns, fromColumns, cmap, rows, cols, repmat, flatten, (¿))
+import Numeric.LinearAlgebra.Data (R, Matrix, Vector, maxIndex, toColumns, fromColumns, cmap, rows, cols, repmat, flatten, (¿), maxElement)
 import Numeric.LinearAlgebra (scale, sumElements)
 
 type Network = [Layer]
@@ -43,11 +43,15 @@ inferBatch net input = softLayer (foldl reluLayer input nonLinear) final
         batchSoftmax mat = fromColumns (foldr folder [] [1..nCols])
             where
                 folder :: Int -> [Vector R] -> [Vector R]
-                folder colIdx acc =  scale (1/denom col) (cmap exp col):acc
-                    where col = flatten $ mat ¿ [colIdx - 1]
+                folder colIdx acc =  scale (1/denom) expCol:acc
+                    where
+                        col = flatten $ mat ¿ [colIdx - 1]
 
-                denom :: Vector R -> R
-                denom col = sumElements (cmap exp col)
+                        colMax = maxElement col
+                        correctedCol = cmap (\x -> x - colMax) col
+
+                        expCol = cmap exp correctedCol
+                        denom = sumElements expCol
 
 inferSingle :: Network -> Vector R -> Vector R
 inferSingle net input = head $ toColumns $ softLayer (foldl reluLayer inpMat nonLinear) final
@@ -70,10 +74,21 @@ relu :: Matrix R -> Matrix R
 relu = cmap (max 0)
 
 softmax :: Matrix R -> Matrix R
-softmax v = scale (1/denom) (cmap exp v)
+softmax v = scale (1/denom) expV
             where
+                -- shift max elem to 0, for additional numerical stability during exponentiation
+                -- (prevents large numbers from NaN'ing, common implementation detail for softmax) 
+                highest :: R
+                highest = maxElement v
+
+                correctedV :: Matrix R
+                correctedV = cmap (\x -> x - highest) v
+
+                expV :: Matrix R
+                expV = cmap exp correctedV
+
                 denom :: R
-                denom = sumElements (cmap exp v)
+                denom = sumElements expV
 
 instance Show Layer where
     show (Layer w b) = show (cols w) ++ " -> " ++ show (rows w) ++ "\n" ++ show w ++ "\n" ++ show b
