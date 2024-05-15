@@ -64,3 +64,6 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - inference
+    - hspec
+    - QuickCheck
+    - random

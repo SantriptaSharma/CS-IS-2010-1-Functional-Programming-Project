@@ -60,7 +60,7 @@ main :: IO ()
 main = do
     argv <- getArgs
     let argc = length argv
-    when (argc < 1) $ error "Usage: inference <weights file> [<batch csv file>]"
+    when (argc < 1) $ error "Usage: inference <weights file> [<batch csv file>] [<ground truth csv>]"
     contents <- B.readFile $ head argv
     let !network = parseNetwork contents
     case argc of
